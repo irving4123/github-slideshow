@@ -21,6 +21,7 @@ void pwm_enable_all(void);
 void pwm_disable_all(void);
 void pwm_set_frequency(unsigned int frequency);
 void pwm_emergency_stop(void);
+void update_pwm_outputs(void);
 
 // PWM状态查询函数
 unsigned char pwm_get_duty_cycle(void);

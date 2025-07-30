@@ -91,6 +91,9 @@ void protection_monitor_process(void);
 unsigned char protection_self_test(void);
 void protection_get_status_string(char* buffer, unsigned int buffer_size);
 
+// 故障清除检查
+unsigned char check_fault_cleared(void);
+
 // 全局变量声明
 extern volatile protection_type_t active_protection_fault;
 extern volatile unsigned char protection_fault_flags;

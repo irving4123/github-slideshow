@@ -57,11 +57,14 @@ void ramp_set_target(unsigned char target_duty, unsigned int ramp_time);
 
 // 启动到BEMF切换
 unsigned char check_bemf_transition_ready(void);
-void perform_bemf_transition(void);
+unsigned char perform_bemf_transition(void);
 
 // 启动保护功能
 unsigned char startup_protection_check(void);
 void startup_handle_fault(void);
+
+// 时间函数
+unsigned int get_system_time_ms(void);
 
 // 全局变量声明
 extern volatile startup_state_t current_startup_state;

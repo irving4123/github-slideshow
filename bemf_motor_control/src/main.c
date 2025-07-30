@@ -12,6 +12,19 @@ volatile unsigned int current_speed = 0;    // 当前转速
 volatile unsigned char duty_cycle = 0;      // 当前占空比
 volatile fault_type_t fault_status = FAULT_NONE;
 
+// 函数声明
+void system_init(void);
+void main_control_loop(void);
+void speed_control_process(void);
+void fault_handler(void);
+void status_monitor(void);
+void delay_us(unsigned int us);
+void delay_ms(unsigned int ms);
+void timer_init(void);
+void uart_init(void);
+void uart_send_string(const char* str);
+void uart_send_number(unsigned int num);
+
 // 系统初始化
 void system_init(void) {
     // 关闭全局中断
@@ -171,7 +184,63 @@ void status_monitor(void) {
     }
 }
 
-// 延时函数
+// 定时器初始化
+void timer_init(void) {
+    // 配置Timer0用于系统时钟
+    TMOD |= 0x01;  // Timer0, Mode 1 (16-bit)
+    TH0 = 0xFC;    // 1ms @ 12MHz
+    TL0 = 0x18;
+    ET0 = 1;       // 使能Timer0中断
+    TR0 = 1;       // 启动Timer0
+}
+
+// UART初始化
+void uart_init(void) {
+    SCON = 0x50;   // 8-bit, variable baud rate
+    TMOD |= 0x20;  // Timer1, Mode 2 (8-bit auto-reload)
+    TH1 = 0xFD;    // 9600 baud @ 11.0592MHz
+    TL1 = 0xFD;
+    TR1 = 1;       // 启动Timer1
+    ES = 1;        // 使能串口中断
+}
+
+// UART发送字符串
+void uart_send_string(const char* str) {
+    while(*str) {
+        SBUF = *str;
+        while(!TI);
+        TI = 0;
+        str++;
+    }
+}
+
+// UART发送数字
+void uart_send_number(unsigned int num) {
+    char buffer[8];
+    unsigned char i = 0;
+    
+    if(num == 0) {
+        buffer[i++] = '0';
+    } else {
+        while(num > 0) {
+            buffer[i++] = '0' + (num % 10);
+            num /= 10;
+        }
+    }
+    
+    // 反转字符串
+    unsigned char j;
+    for(j = 0; j < i/2; j++) {
+        char temp = buffer[j];
+        buffer[j] = buffer[i-1-j];
+        buffer[i-1-j] = temp;
+    }
+    
+    buffer[i] = '\0';
+    uart_send_string(buffer);
+}
+
+// 延时函数 (微秒)
 void delay_us(unsigned int us) {
     unsigned int i;
     for(i = 0; i < us; i++) {
@@ -187,5 +256,23 @@ void delay_ms(unsigned int ms) {
     unsigned int i;
     for(i = 0; i < ms; i++) {
         delay_us(1000);
+    }
+}
+
+// Timer0中断服务程序
+void timer0_isr(void) interrupt 1 {
+    TH0 = 0xFC;  // 重装载
+    TL0 = 0x18;
+    // 系统时钟处理
+}
+
+// 串口中断服务程序
+void uart_isr(void) interrupt 4 {
+    if(RI) {
+        RI = 0;
+        // 接收数据处理
+    }
+    if(TI) {
+        TI = 0;
     }
 }

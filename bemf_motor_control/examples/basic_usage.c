@@ -133,150 +133,6 @@ void example_protection_test(void) {
     uart_send_string("Protection test completed\r\n");
 }
 
-// 示例4: 参数调整演示
-void example_parameter_adjustment(void) {
-    startup_params_t startup_params;
-    protection_config_t protection_config;
-    
-    uart_send_string("Parameter adjustment demo\r\n");
-    
-    // 1. 调整启动参数
-    startup_get_params(&startup_params);
-    
-    uart_send_string("Original startup parameters:\r\n");
-    uart_send_string("Initial duty: ");
-    uart_send_number(startup_params.initial_duty);
-    uart_send_string("%\r\n");
-    uart_send_string("Ramp time: ");
-    uart_send_number(startup_params.ramp_time_ms);
-    uart_send_string(" ms\r\n");
-    
-    // 修改启动参数
-    startup_params.initial_duty = 15;        // 降低初始占空比
-    startup_params.ramp_time_ms = 150;       // 增加斜坡时间
-    startup_set_params(&startup_params);
-    
-    uart_send_string("Updated startup parameters\r\n");
-    
-    // 2. 调整保护配置
-    protection_get_config(&protection_config);
-    
-    // 临时禁用过温保护
-    protection_config.overtemp_enabled = 0;
-    protection_set_config(&protection_config);
-    
-    uart_send_string("Overtemperature protection disabled\r\n");
-    
-    // 3. 调整BEMF检测参数
-    // 这里可以通过修改全局变量或配置寄存器来调整BEMF参数
-    
-    uart_send_string("Parameter adjustment completed\r\n");
-}
-
-// 示例5: 状态监控和数据记录
-void example_status_monitoring(void) {
-    unsigned int monitor_count = 0;
-    unsigned int max_current = 0;
-    unsigned int min_voltage = 65535;
-    unsigned int max_temperature = 0;
-    
-    uart_send_string("Status monitoring started\r\n");
-    
-    while(example_running && monitor_count < 300) {  // 监控5分钟
-        // 读取当前状态
-        unsigned int current_rpm = calculate_speed();
-        unsigned int current_ma = adc_read_current_ma();
-        unsigned int voltage_mv = adc_read_voltage_mv();
-        unsigned int temperature_c = adc_read_temperature_c();
-        unsigned char duty = pwm_get_duty_cycle();
-        
-        // 更新统计数据
-        if(current_ma > max_current) max_current = current_ma;
-        if(voltage_mv < min_voltage) min_voltage = voltage_mv;
-        if(temperature_c > max_temperature) max_temperature = temperature_c;
-        
-        // 每10秒输出一次状态
-        if(monitor_count % 10 == 0) {
-            uart_send_string("Status - Speed: ");
-            uart_send_number(current_rpm);
-            uart_send_string(" RPM, Current: ");
-            uart_send_number(current_ma);
-            uart_send_string(" mA, Voltage: ");
-            uart_send_number(voltage_mv / 1000);
-            uart_send_string(" V, Temp: ");
-            uart_send_number(temperature_c);
-            uart_send_string(" C, Duty: ");
-            uart_send_number(duty);
-            uart_send_string("%\r\n");
-        }
-        
-        // 检查异常状态
-        if(protection_has_fault()) {
-            uart_send_string("Fault detected during monitoring\r\n");
-            break;
-        }
-        
-        monitor_count++;
-        delay_ms(1000);  // 1秒间隔
-    }
-    
-    // 输出统计结果
-    uart_send_string("Monitoring completed. Statistics:\r\n");
-    uart_send_string("Max current: ");
-    uart_send_number(max_current);
-    uart_send_string(" mA\r\n");
-    uart_send_string("Min voltage: ");
-    uart_send_number(min_voltage / 1000);
-    uart_send_string(" V\r\n");
-    uart_send_string("Max temperature: ");
-    uart_send_number(max_temperature);
-    uart_send_string(" C\r\n");
-}
-
-// 示例6: 完整的应用程序流程
-void example_complete_application(void) {
-    uart_send_string("BEMF Motor Control System - Complete Example\r\n");
-    uart_send_string("===========================================\r\n");
-    
-    // 1. 基本启动
-    uart_send_string("Step 1: Basic startup\r\n");
-    example_basic_startup();
-    
-    if(!example_running) {
-        uart_send_string("Startup failed, exiting\r\n");
-        return;
-    }
-    
-    // 2. 短暂运行以稳定系统
-    uart_send_string("Step 2: System stabilization\r\n");
-    delay_ms(2000);
-    
-    // 3. 速度控制演示
-    uart_send_string("Step 3: Speed control demonstration\r\n");
-    example_speed_control_demo();
-    
-    // 4. 参数调整
-    uart_send_string("Step 4: Parameter adjustment\r\n");
-    example_parameter_adjustment();
-    
-    // 5. 保护功能测试
-    uart_send_string("Step 5: Protection function test\r\n");
-    example_protection_test();
-    
-    // 6. 状态监控
-    uart_send_string("Step 6: Status monitoring\r\n");
-    example_status_monitoring();
-    
-    // 7. 安全停机
-    uart_send_string("Step 7: Safe shutdown\r\n");
-    target_speed = 0;
-    delay_ms(3000);  // 等待电机停止
-    pwm_disable_all();
-    example_running = 0;
-    
-    uart_send_string("Example completed successfully\r\n");
-}
-
 // 错误处理回调函数
 void example_protection_callback(protection_type_t type) {
     uart_send_string("Protection callback - Fault type: ");
@@ -310,12 +166,41 @@ void main(void) {
     // 注册保护回调函数
     protection_register_callback(example_protection_callback);
     
-    // 运行完整示例
-    example_complete_application();
+    uart_send_string("BEMF Motor Control System - Basic Example\r\n");
+    uart_send_string("========================================\r\n");
+    
+    // 1. 基本启动
+    uart_send_string("Step 1: Basic startup\r\n");
+    example_basic_startup();
+    
+    if(!example_running) {
+        uart_send_string("Startup failed, exiting\r\n");
+        return;
+    }
+    
+    // 2. 短暂运行以稳定系统
+    uart_send_string("Step 2: System stabilization\r\n");
+    delay_ms(2000);
+    
+    // 3. 速度控制演示
+    uart_send_string("Step 3: Speed control demonstration\r\n");
+    example_speed_control_demo();
+    
+    // 4. 保护功能测试
+    uart_send_string("Step 4: Protection function test\r\n");
+    example_protection_test();
+    
+    // 5. 安全停机
+    uart_send_string("Step 5: Safe shutdown\r\n");
+    target_speed = 0;
+    delay_ms(3000);  // 等待电机停止
+    pwm_disable_all();
+    example_running = 0;
+    
+    uart_send_string("Example completed successfully\r\n");
     
     // 程序结束后进入无限循环
     while(1) {
-        // 可以在这里添加其他功能或进入低功耗模式
         delay_ms(1000);
     }
 }

@@ -24,6 +24,7 @@ void bemf_filter_process(void);
 // 速度计算函数
 void speed_measurement_init(void);
 void update_speed_measurement(void);
+unsigned long get_system_time_us(void);
 
 // 全局变量声明
 extern volatile unsigned char current_commutation_step;
