@@ -1,0 +1,243 @@
+# Makefile for Enhanced 8051 Sensorless BEMF Motor Control
+# Optimized for 48MHz internal RC oscillator
+
+# Project name
+PROJECT = bemf_8051
+
+# MCU configuration
+MCU = 8051
+F_CPU = 48000000UL
+XRAM_SIZE = 2048
+CODE_SIZE = 18432
+
+# Compiler and tools
+CC = sdcc
+OBJCOPY = objcopy
+PACKIHX = packihx
+MAKEBIN = makebin
+
+# Compiler flags for enhanced 8051
+CFLAGS = --model-large --xram-size $(XRAM_SIZE) --code-size $(CODE_SIZE)
+CFLAGS += --iram-size 256 --xram-loc 0x0000 --code-loc 0x0000
+CFLAGS += -D F_CPU=$(F_CPU) --opt-code-speed --peep-hole
+CFLAGS += --stack-auto --int-long-reent --float-reent
+
+# Optimization flags for 48MHz operation
+CFLAGS += --fomit-frame-pointer --all-callee-saves
+CFLAGS += --peep-return --no-peep-comments
+
+# Debug flags (uncomment for debugging)
+# CFLAGS += --debug --out-fmt-ihx
+
+# Include directories
+INCLUDES = -I.
+
+# Source files
+SOURCES = main_8051.c bemf_8051.c
+
+# Object files
+OBJECTS = $(SOURCES:.c=.rel)
+
+# Header files
+HEADERS = bemf_8051.h
+
+# Output files
+TARGET_HEX = $(PROJECT).hex
+TARGET_IHX = $(PROJECT).ihx
+TARGET_BIN = $(PROJECT).bin
+TARGET_MEM = $(PROJECT).mem
+TARGET_MAP = $(PROJECT).map
+
+# Default target
+all: $(TARGET_HEX) size
+
+# Build hex file from ihx
+$(TARGET_HEX): $(TARGET_IHX)
+	@echo "Creating hex file: $@"
+	$(PACKIHX) $< > $@
+
+# Build ihx file
+$(TARGET_IHX): $(OBJECTS)
+	@echo "Linking: $@"
+	$(CC) $(CFLAGS) $(OBJECTS) -o $@
+
+# Compile source files
+%.rel: %.c $(HEADERS)
+	@echo "Compiling: $<"
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Create binary file
+$(TARGET_BIN): $(TARGET_HEX)
+	@echo "Creating binary: $@"
+	$(MAKEBIN) -p $< $@
+
+# Show memory usage
+size: $(TARGET_IHX)
+	@echo "Memory usage analysis:"
+	@echo "======================"
+	@if [ -f $(PROJECT).mem ]; then \
+		echo "Memory map:"; \
+		cat $(PROJECT).mem | head -20; \
+	fi
+	@echo ""
+	@echo "Code size analysis:"
+	@ls -la $(TARGET_HEX) $(TARGET_BIN) 2>/dev/null || true
+	@echo ""
+	@echo "Estimated memory usage:"
+	@echo "- Internal RAM: 256 bytes available"
+	@echo "- External RAM: $(XRAM_SIZE) bytes available"
+	@echo "- Code space: $(CODE_SIZE) bytes available"
+
+# Generate memory map
+memmap: $(TARGET_IHX)
+	@echo "Generating memory map..."
+	@echo "Code segments:" > $(TARGET_MEM)
+	@grep -E "^[0-9A-F]{4}" $(TARGET_IHX) | head -10 >> $(TARGET_MEM)
+
+# Programming targets (adjust for your programmer)
+program: $(TARGET_HEX)
+	@echo "Programming 8051 MCU..."
+	@echo "Please use your specific 8051 programmer tool"
+	@echo "Example: stcgal -p $(TARGET_HEX)"
+	
+# For STC series MCUs
+program-stc: $(TARGET_HEX)
+	@echo "Programming STC 8051 MCU..."
+	stcgal -p /dev/ttyUSB0 $(TARGET_HEX)
+
+# For AT89S series MCUs  
+program-at89s: $(TARGET_HEX)
+	@echo "Programming AT89S MCU..."
+	avrdude -c stk500v2 -p at89s52 -U flash:w:$(TARGET_HEX):i
+
+# Clean build files
+clean:
+	@echo "Cleaning build files..."
+	rm -f $(OBJECTS) $(TARGET_IHX) $(TARGET_HEX) $(TARGET_BIN) $(TARGET_MEM)
+	rm -f *.rel *.ihx *.hex *.bin *.mem *.map *.rst *.sym *.lst *.asm
+
+# Clean everything including backup files
+distclean: clean
+	@echo "Cleaning all generated files..."
+	rm -f *~ *.bak *.orig
+
+# Create backup of source files
+backup:
+	@echo "Creating backup..."
+	tar -czf $(PROJECT)_backup_$(shell date +%Y%m%d_%H%M%S).tar.gz \
+		*.c *.h Makefile_8051 README_8051.md
+
+# Development targets
+debug: CFLAGS += --debug --out-fmt-ihx
+debug: $(TARGET_HEX)
+
+release: CFLAGS += --opt-code-speed --peep-hole
+release: $(TARGET_HEX)
+
+# Check code with cppcheck (if available)
+check:
+	@echo "Running static analysis..."
+	@if command -v cppcheck >/dev/null 2>&1; then \
+		cppcheck --enable=all --std=c99 --platform=unix32 $(SOURCES) $(HEADERS); \
+	else \
+		echo "cppcheck not found, skipping static analysis"; \
+	fi
+
+# Format code (if astyle available)
+format:
+	@echo "Formatting code..."
+	@if command -v astyle >/dev/null 2>&1; then \
+		astyle --style=linux --indent=spaces=4 --max-code-length=80 \
+			--pad-oper --pad-header --unpad-paren --align-pointer=name \
+			--suffix=none $(SOURCES) $(HEADERS); \
+	else \
+		echo "astyle not found, skipping code formatting"; \
+	fi
+
+# Show help
+help:
+	@echo "Available targets:"
+	@echo "  all          - Build hex file and show size"
+	@echo "  clean        - Remove build files"
+	@echo "  distclean    - Remove all generated files"
+	@echo "  size         - Show memory usage"
+	@echo "  memmap       - Generate memory map"
+	@echo "  program      - Program MCU (generic)"
+	@echo "  program-stc  - Program STC 8051 MCU"
+	@echo "  program-at89s - Program AT89S MCU"
+	@echo "  debug        - Build with debug symbols"
+	@echo "  release      - Build optimized release version"
+	@echo "  backup       - Create backup of source files"
+	@echo "  check        - Run static code analysis"
+	@echo "  format       - Format source code"
+	@echo "  help         - Show this help"
+
+# Project information
+info:
+	@echo "Project: $(PROJECT)"
+	@echo "MCU: Enhanced 8051"
+	@echo "F_CPU: $(F_CPU)"
+	@echo "XRAM Size: $(XRAM_SIZE) bytes"
+	@echo "Code Size: $(CODE_SIZE) bytes"
+	@echo "Source files: $(SOURCES)"
+	@echo "Compiler: $(CC)"
+	@echo "Flags: $(CFLAGS)"
+
+# Simulation target (if simulator available)
+simulate: $(TARGET_HEX)
+	@echo "Starting simulation..."
+	@if command -v mcu8051ide >/dev/null 2>&1; then \
+		mcu8051ide $(TARGET_HEX); \
+	elif command -v s51 >/dev/null 2>&1; then \
+		s51 -t $(TARGET_HEX); \
+	else \
+		echo "No 8051 simulator found"; \
+		echo "Install mcu8051ide or ucsim for simulation"; \
+	fi
+
+# Disassembly target
+disasm: $(TARGET_IHX)
+	@echo "Generating disassembly..."
+	@if command -v disdz80 >/dev/null 2>&1; then \
+		disdz80 -8051 $(TARGET_IHX) > $(PROJECT).asm; \
+		echo "Disassembly saved to $(PROJECT).asm"; \
+	else \
+		echo "Disassembler not found"; \
+	fi
+
+# Performance analysis
+perf: $(TARGET_IHX)
+	@echo "Performance analysis:"
+	@echo "===================="
+	@echo "Clock frequency: $(F_CPU) Hz"
+	@echo "Instruction cycle: 1T (single cycle)"
+	@echo "Theoretical MIPS: 48 MIPS"
+	@echo ""
+	@echo "Motor control timing:"
+	@echo "- PWM frequency: 20 kHz"
+	@echo "- PWM resolution: 12-bit (2400 steps)"
+	@echo "- System tick: 1 ms"
+	@echo "- BEMF sampling: ~40 kHz effective"
+
+# Dependencies
+$(OBJECTS): $(HEADERS)
+
+# Phony targets
+.PHONY: all clean distclean size memmap program program-stc program-at89s
+.PHONY: debug release backup check format help info simulate disasm perf
+
+# Special target for enhanced 8051 features
+features:
+	@echo "Enhanced 8051 Features Utilized:"
+	@echo "================================"
+	@echo "✓ 1T high-speed core (48 MHz)"
+	@echo "✓ Dual DPTR for fast data access"
+	@echo "✓ Hardware 16x16 multiplier (1 cycle)"
+	@echo "✓ Hardware 32/16 divider (8 cycles)"
+	@echo "✓ Hardware 32-bit shifter (1 cycle)"
+	@echo "✓ 3-phase PWM1 array with complementary outputs"
+	@echo "✓ Dual analog comparators with interrupts"
+	@echo "✓ 12-bit ADC with multiple channels"
+	@echo "✓ 2304 bytes RAM (256 internal + 2048 external)"
+	@echo "✓ 18K bytes FLASH memory"
+	@echo "✓ Advanced power management"
